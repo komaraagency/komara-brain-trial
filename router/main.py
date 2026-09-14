@@ -96,6 +96,65 @@ OBJECTION_PATTERNS = ["cher", "reflechi", "hesite", "arnaque", "rembourse",
                       "budget", "pas sur", "pas convince", "doute"]
 
 
+# ---------------- TELEGRAM ----------------
+
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """Réception des updates Telegram -> routage cerveau -> réponse."""
+    if telegram.TELEGRAM_WEBHOOK_SECRET:
+        header_secret = request.headers.get("x-telegram-bot-api-secret-token", "")
+        if header_secret != telegram.TELEGRAM_WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Secret Telegram invalide")
+    try:
+        update = await request.json()
+    except Exception:
+        return {"ok": True}  # payload invalide : on avoue réception pour éviter les retries
+    extracted = telegram.extract_message(update)
+    if extracted is None:
+        return {"ok": True}  # sticker, photo, etc. — rien à traiter
+    chat_id, text, sender_name = extracted
+    msg = IncomingMessage(sender=sender_name, message=text)
+
+    # Même pipeline que les autres canaux : accueil / politesse / routage / agents
+    probe = AGENTS[0]
+    if probe.is_greeting(text):
+        reply_text = GLOBAL_WELCOME
+        agent_name = "welcome"
+    elif probe.is_thanks(text):
+        reply_text = GLOBAL_THANKS
+        agent_name = "merci"
+    else:
+        agent, score = route(text)
+        if score == 0:
+            g = detect_global_intent(text)
+            if g == "rdv":
+                reply_text, agent_name = GLOBAL_RDV, "rdv_global"
+            elif g == "objection":
+                reply_text, agent_name = GLOBAL_OBJECTION, "objection_global"
+            else:
+                reply_text, agent_name = agent.respond(text)["reply"], agent.name
+        else:
+            reply_text, agent_name = agent.respond(text)["reply"], agent.name
+
+    sent = telegram.send_message(chat_id, reply_text)
+    log.info(f"[telegram] {sender_name or chat_id} → {agent_name} sent={sent}")
+    return {"ok": True}
+
+
+@app.get("/telegram/status")
+def telegram_status():
+    """Vérifie la configuration Telegram."""
+    return {"configured": telegram.is_configured(),
+            "hint": "Ajoute TELEGRAM_BOT_TOKEN dans les variables Railway" if not telegram.is_configured() else "Token présent ✅"}
+
+
+@app.post("/telegram/setup")
+def telegram_setup(request: Request):
+    """Enregistre le webhook Telegram (appelle après avoir mis le token sur Railway)."""
+    base_url = str(request.base_url).rstrip("/")
+    return telegram.set_webhook(base_url)
+
+
 @app.post("/webhook/{channel}")
 def webhook(channel: str, msg: IncomingMessage):
     """Point d'entrée unique : /webhook/whatsapp, /webhook/telegram, /webhook/api..."""
@@ -220,65 +279,6 @@ add("Salut 👋 Je suis le cerveau Komara Agency en mode test.\nEssaie : \"combi
 def chat():
     """Page de test : discuter avec le cerveau depuis un navigateur."""
     return CHAT_HTML
-
-
-# ---------------- TELEGRAM ----------------
-
-@app.post("/webhook/telegram")
-async def telegram_webhook(request: Request):
-    """Réception des updates Telegram -> routage cerveau -> réponse."""
-    if telegram.TELEGRAM_WEBHOOK_SECRET:
-        header_secret = request.headers.get("x-telegram-bot-api-secret-token", "")
-        if header_secret != telegram.TELEGRAM_WEBHOOK_SECRET:
-            raise HTTPException(status_code=403, detail="Secret Telegram invalide")
-    try:
-        update = await request.json()
-    except Exception:
-        return {"ok": True}  # payload invalide : on avoue réception pour éviter les retries
-    extracted = telegram.extract_message(update)
-    if extracted is None:
-        return {"ok": True}  # sticker, photo, etc. — rien à traiter
-    chat_id, text, sender_name = extracted
-    msg = IncomingMessage(sender=sender_name, message=text)
-
-    # Même pipeline que les autres canaux : accueil / politesse / routage / agents
-    probe = AGENTS[0]
-    if probe.is_greeting(text):
-        reply_text = GLOBAL_WELCOME
-        agent_name = "welcome"
-    elif probe.is_thanks(text):
-        reply_text = GLOBAL_THANKS
-        agent_name = "merci"
-    else:
-        agent, score = route(text)
-        if score == 0:
-            g = detect_global_intent(text)
-            if g == "rdv":
-                reply_text, agent_name = GLOBAL_RDV, "rdv_global"
-            elif g == "objection":
-                reply_text, agent_name = GLOBAL_OBJECTION, "objection_global"
-            else:
-                reply_text, agent_name = agent.respond(text)["reply"], agent.name
-        else:
-            reply_text, agent_name = agent.respond(text)["reply"], agent.name
-
-    sent = telegram.send_message(chat_id, reply_text)
-    log.info(f"[telegram] {sender_name or chat_id} → {agent_name} sent={sent}")
-    return {"ok": True}
-
-
-@app.get("/telegram/status")
-def telegram_status():
-    """Vérifie la configuration Telegram."""
-    return {"configured": telegram.is_configured(),
-            "hint": "Ajoute TELEGRAM_BOT_TOKEN dans les variables Railway" if not telegram.is_configured() else "Token présent ✅"}
-
-
-@app.post("/telegram/setup")
-def telegram_setup(request: Request):
-    """Enregistre le webhook Telegram (appelle après avoir mis le token sur Railway)."""
-    base_url = str(request.base_url).rstrip("/")
-    return telegram.set_webhook(base_url)
 
 
 @app.post("/route")
