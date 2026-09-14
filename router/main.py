@@ -88,7 +88,7 @@ GLOBAL_OBJECTION = (
     "🤖 un bot WhatsApp/Telegram, 🎨 un visuel (logo, affiche), ou 💻 un site ?\n"
     "Dans tous les cas : paiement possible en 2 fois (50/50), et satisfaction garantie 🤝"
 )
-RDV_PATTERNS = ["rdv", "rendez vous", "rendez-vous", "appel", "dispo", "recontacte", "rappelle"]
+RDV_PATTERNS = ["rdv", "rendez vous", "rendez-vous", "appel", "dispo", "recontacte", "rappel"]
 OBJECTION_PATTERNS = ["cher", "reflechi", "hesite", "arnaque", "rembourse",
                       "budget", "pas sur", "pas convince", "doute"]
 
