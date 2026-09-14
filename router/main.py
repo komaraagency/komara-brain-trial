@@ -52,11 +52,39 @@ def health():
     return {"status": "ok", "brain": "komara-brain-trial", "agents": [a.name for a in AGENTS]}
 
 
+GLOBAL_WELCOME = (
+    "Bonjour 👋 Bienvenue chez Komara Agency 🇬🇳\n"
+    "Je peux t'aider sur 3 domaines :\n"
+    "🤖 Bots WhatsApp/Telegram (automatisation)\n"
+    "🎨 Création digitale (logo, affiche, branding)\n"
+    "💻 Développement web (site, boutique, app)\n"
+    "Dis-moi ce que tu cherches 😊"
+)
+GLOBAL_THANKS = (
+    "Avec grand plaisir 😊🇬🇳\n"
+    "N'hésite pas si tu as d'autres questions. On est là pour toi !\n"
+    "Et si tu veux avancer : le +212 701-986219 pour en discuter directement 😉"
+)
+
+
 @app.post("/webhook/{channel}")
 def webhook(channel: str, msg: IncomingMessage):
     """Point d'entrée unique : /webhook/whatsapp, /webhook/telegram, /webhook/api..."""
     if channel not in ("whatsapp", "telegram", "api", "web", "test"):
         raise HTTPException(status_code=400, detail=f"Canal inconnu : {channel}")
+
+    # Salutations et politesses : gérées globalement (cohérence entre agents)
+    probe = AGENTS[0]
+    if probe.is_greeting(msg.message) and not msg.force_agent:
+        return {"channel": channel, "sender": msg.sender,
+                "router": {"agent": "welcome", "score": 0},
+                "agent": "welcome", "section": "accueil",
+                "reply": GLOBAL_WELCOME, "handoff": False}
+    if probe.is_thanks(msg.message) and not msg.force_agent:
+        return {"channel": channel, "sender": msg.sender,
+                "router": {"agent": "merci", "score": 0},
+                "agent": "merci", "section": "politesse",
+                "reply": GLOBAL_THANKS, "handoff": False}
 
     if msg.force_agent:
         agent = AGENT_BY_NAME.get(msg.force_agent)

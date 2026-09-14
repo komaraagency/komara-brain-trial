@@ -49,6 +49,26 @@ class BaseAgent:
             return best
         return None
 
+
+    # Salutations et politesses gérées globalement par le routeur
+    GREETING_WORDS = ["bonjour", "salut", "bonsoir", "slt", "hello", "cc",
+                      "ca va", "cv", "sa va", "yo", "hey"]
+    THANKS_WORDS = ["merci", "thanks", "mrc"]
+
+    def is_greeting(self, text: str) -> bool:
+        """True si le message n'est qu'une salutation (sans autre contenu métier)."""
+        t = self.normalize(text)
+        return t in self.GREETING_WORDS or (
+            any(g == t or t.startswith(g + " ") for g in self.GREETING_WORDS)
+            and len(t.split()) <= 4 and self.match_score(t) == 0
+        )
+
+    def is_thanks(self, text: str) -> bool:
+        t = self.normalize(text)
+        return t in self.THANKS_WORDS or (
+            t.startswith("merci") and len(t.split()) <= 4
+        )
+
     def respond(self, message: str, context: Optional[dict] = None) -> dict:
         answer = self.find_answer(message) or self.FALLBACK
         return {
