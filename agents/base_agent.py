@@ -26,9 +26,15 @@ class BaseAgent:
         return re.sub(r"\s+", " ", t).strip()
 
     def match_score(self, text: str) -> int:
-        """Score de routage : combien de mots-clés reconnus dans le message."""
+        """Score de routage : mots-clés reconnus comme MOTS ENTIERS dans le message.
+        (évite les faux positifs : 'app' ne matche plus 'rappeler')"""
         t = self.normalize(text)
-        return sum(1 for kw in self.KEYWORDS if self.normalize(kw) in t)
+        score = 0
+        for kw in self.KEYWORDS:
+            pattern = r"\b" + re.escape(self.normalize(kw)) + r"\b"
+            if re.search(pattern, t):
+                score += 1
+        return score
 
     def find_answer(self, text: str) -> Optional[str]:
         """Recherche exacte puis partielle dans le mini-cerveau."""
