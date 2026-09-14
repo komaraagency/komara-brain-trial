@@ -20,7 +20,10 @@ class BaseAgent:
         t = re.sub(r"[éèêë]", "e", t); t = re.sub(r"[àâä]", "a", t)
         t = re.sub(r"[îï]", "i", t); t = re.sub(r"[ôö]", "o", t)
         t = re.sub(r"[ùûü]", "u", t); t = re.sub(r"[ç]", "c", t)
-        return re.sub(r"\s+", " ", t)
+        # apostrophes, accents typographiques et ponctuation -> espaces
+        t = re.sub(r"[''`’]", " ", t)
+        t = re.sub(r"[!?.,;:()\[\]\"/_-]+", " ", t)
+        return re.sub(r"\s+", " ", t).strip()
 
     def match_score(self, text: str) -> int:
         """Score de routage : combien de mots-clés reconnus dans le message."""
