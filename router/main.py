@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from agents.whatsapp_bot.agent import AGENT as BOTS_AGENT
@@ -142,6 +143,81 @@ def webhook(channel: str, msg: IncomingMessage):
         "router": {"agent": agent.name, "score": score},
         **result,
     }
+
+
+CHAT_HTML = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Komara Brain — Test</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: system-ui, sans-serif; background:#0b141a; color:#e9edef;
+         height:100vh; display:flex; flex-direction:column; }
+  header { background:#1f2c33; padding:14px 16px; display:flex; align-items:center; gap:10px; }
+  .logo { width:38px; height:38px; background:linear-gradient(135deg,#ce1126,#fcd116,#009460);
+          border-radius:50%; display:flex; align-items:center; justify-content:center;
+          font-weight:bold; font-size:18px; color:#fff; }
+  header h1 { font-size:16px; } header p { font-size:12px; color:#8696a0; }
+  #chat { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:80%; padding:10px 14px; border-radius:12px; font-size:15px;
+         line-height:1.45; white-space:pre-wrap; }
+  .bot { background:#1f2c33; align-self:flex-start; border-top-left-radius:2px; }
+  .me  { background:#005c4b; align-self:flex-end; border-top-right-radius:2px; }
+  .tag { font-size:11px; color:#66b2a2; margin-bottom:4px; font-weight:600; }
+  form { display:flex; gap:8px; padding:12px; background:#1f2c33; }
+  input { flex:1; background:#2a3942; border:none; border-radius:22px; padding:12px 16px;
+          color:#e9edef; font-size:15px; outline:none; }
+  button { background:#00a884; color:#fff; border:none; border-radius:22px;
+           padding:12px 20px; font-size:15px; font-weight:600; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">K</div>
+  <div><h1>Komara Brain 🇬🇳</h1><p id="status">Test en direct — 3 agents + routeur</p></div>
+</header>
+<div id="chat"></div>
+<form onsubmit="return send(event)">
+  <input id="input" placeholder="Écris ton message..." autocomplete="off">
+  <button>➤</button>
+</form>
+<script>
+const chat = document.getElementById("chat");
+function add(text, who, tag) {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  if (tag) { const t = document.createElement("div"); t.className="tag";
+             t.textContent = tag; d.appendChild(t); }
+  d.appendChild(document.createTextNode(text));
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+}
+async function send(e) {
+  e.preventDefault();
+  const input = document.getElementById("input");
+  const text = input.value.trim(); if (!text) return false;
+  input.value = ""; add(text, "me");
+  try {
+    const r = await fetch("/webhook/test", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({message: text, sender: "web_test"})
+    });
+    const d = await r.json();
+    add(d.reply, "bot", "🤖 " + d.agent + (d.handoff ? " (handoff)" : ""));
+  } catch (err) { add("Erreur de connexion 😅", "bot"); }
+  return false;
+}
+add("Salut 👋 Je suis le cerveau Komara Agency en mode test.\nEssaie : \"combien coûte un bot ?\", \"je veux un logo\", \"c'est cher\" ou \"rdv\" 😊", "bot");
+</script>
+</body>
+</html>"""
+
+
+@app.get("/chat", response_class=HTMLResponse)
+def chat():
+    """Page de test : discuter avec le cerveau depuis un navigateur."""
+    return CHAT_HTML
 
 
 @app.post("/route")
