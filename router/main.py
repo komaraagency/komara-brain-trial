@@ -47,6 +47,17 @@ def route(message: str) -> tuple:
     return AGENT_BY_NAME[best_name], best_score
 
 
+def detect_global_intent(message: str) -> str | None:
+    """Intention cross-domaine quand aucun agent ne matche : rdv, objection, sinon None."""
+    probe = AGENTS[0]
+    t = probe.normalize(message)
+    if any(p in t for p in RDV_PATTERNS):
+        return "rdv"
+    if any(p in t for p in OBJECTION_PATTERNS):
+        return "objection"
+    return None
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "brain": "komara-brain-trial", "agents": [a.name for a in AGENTS]}
@@ -65,6 +76,21 @@ GLOBAL_THANKS = (
     "N'hésite pas si tu as d'autres questions. On est là pour toi !\n"
     "Et si tu veux avancer : le +212 701-986219 pour en discuter directement 😉"
 )
+
+# Intentions cross-domaine (sans mot-clé métier) : réponses neutres
+GLOBAL_RDV = (
+    "Avec plaisir 📅 On peut se parler :\n"
+    "☀️ 10h-13h ou 🌆 16h-19h (heure Guinée)\n"
+    "Donne-moi un créneau et je confirme. Ou appelle le +212 701-986219 😉"
+)
+GLOBAL_OBJECTION = (
+    "Je comprends 😊 Pour te répondre au juste, c'est pour quel projet :\n"
+    "🤖 un bot WhatsApp/Telegram, 🎨 un visuel (logo, affiche), ou 💻 un site ?\n"
+    "Dans tous les cas : paiement possible en 2 fois (50/50), et satisfaction garantie 🤝"
+)
+RDV_PATTERNS = ["rdv", "rendez vous", "rendez-vous", "appel", "dispo", "recontacte", "rappelle"]
+OBJECTION_PATTERNS = ["cher", "reflechi", "hesite", "arnaque", "rembourse",
+                      "budget", "pas sur", "pas convince", "doute"]
 
 
 @app.post("/webhook/{channel}")
@@ -93,6 +119,19 @@ def webhook(channel: str, msg: IncomingMessage):
         score = -1
     else:
         agent, score = route(msg.message)
+        # intention cross-domaine (rdv, objection) quand aucun domaine ne matche
+        if score == 0:
+            g = detect_global_intent(msg.message)
+            if g == "rdv":
+                return {"channel": channel, "sender": msg.sender,
+                        "router": {"agent": "rdv_global", "score": 0},
+                        "agent": "rdv_global", "section": "prise de rdv",
+                        "reply": GLOBAL_RDV, "handoff": False}
+            if g == "objection":
+                return {"channel": channel, "sender": msg.sender,
+                        "router": {"agent": "objection_global", "score": 0},
+                        "agent": "objection_global", "section": "objection",
+                        "reply": GLOBAL_OBJECTION, "handoff": False}
 
     result = agent.respond(msg.message, msg.context)
     log.info(f"[{channel}] {msg.sender or '?'} → agent={agent.name} score={score} handoff={result['handoff']}")
